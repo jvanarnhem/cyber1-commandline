@@ -36,7 +36,7 @@
         level: 0, 
         studentName: "",
         currentDir: "Admin",
-        hasSeenHelp: false // NEW: Enforces the Read-Then-Do loop
+        hasSeenHelp: false
     };
 
     const vfs = {
@@ -48,7 +48,7 @@
 
     let history = [];
     let historyIndex = -1;
-    const SAVE_KEY = 'cmd_escape_save_v6';
+    const SAVE_KEY = 'cmd_escape_save_v7';
 
     function saveGame() { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
     function loadGame() {
@@ -58,7 +58,7 @@
         else { printHeader(); updatePrompt(); }
     }
 
-    // --- THE CURRICULUM (22 Levels) ---
+    // --- THE CURRICULUM (23 Levels) ---
     const tasks = {
         0: { prev: "", hint: "TASK 0: Connect to the system. Type 'ssh [YourName]@server' to log in." },
         1: { prev: "SUCCESS: 'ssh' creates an encrypted network connection to a remote device.", hint: "TASK 1: Handshake. Use 'ver' to identify the OS version." },
@@ -82,7 +82,8 @@
         19: { prev: "SUCCESS: The file contains the word 'access'.", hint: "TASK 19: Backup. Use 'copy key.txt backup.txt' to duplicate the file." },
         20: { prev: "SUCCESS: 'copy' duplicated the file.", hint: "TASK 20: Disguise. Use 'ren key.txt secret.txt' to rename the original file." },
         21: { prev: "SUCCESS: 'ren' changed the filename without altering contents.", hint: "TASK 21: Clean. Use 'del backup.txt' to delete the evidence." },
-        22: { prev: "SUCCESS: 'del' permanently erased the backup file.", hint: "TASK 22: Proof. Use 'dir' to verify your final folder contents. TAKE A SCREENSHOT." }
+        22: { prev: "SUCCESS: 'del' permanently erased the backup file.", hint: "TASK 22: Proof. Use 'dir' to verify your folder only contains 'secret.txt'." },
+        23: { prev: "SUCCESS: Your tracks are covered.", hint: "TASK 23: Complete. Use 'status' to generate your final completion certificate." }
     };
 
     const fileContents = {
@@ -135,12 +136,17 @@
             input.value = '';
 
             if (rawValue.trim() === "") { container.scrollTop = container.scrollHeight; return; }
-            
-            // The hidden Admin bypass always works
             if (cmdLower === 'reset game') { localStorage.removeItem(SAVE_KEY); location.reload(); return; }
 
             history.push(rawValue);
             historyIndex = history.length;
+            
+            // Bypass the help lock if the game is completely over
+            if (state.level >= 24) {
+                print(`'${cmdLower.split(' ')[0]}' is not recognized. The simulation is over.`);
+                return;
+            }
+
             handleCommand(cmdLower, rawValue.trim());
         } 
         else if (e.key === 'ArrowUp') {
@@ -158,7 +164,6 @@
         const initialLevel = state.level;
         const currentTask = tasks[state.level];
 
-        // 1. Process 'help' command
         if (cmd === 'help') {
             if (currentTask && currentTask.prev) {
                 print(currentTask.prev, "#0f0"); 
@@ -166,14 +171,13 @@
             }
             if (currentTask) {
                 print(currentTask.hint, "#ffff00"); 
-                state.hasSeenHelp = true; // Unlock the terminal for this level
+                state.hasSeenHelp = true; 
                 saveGame();
             }
             return;
         }
 
-        // 2. The Strict Guardrail: Block execution if they haven't read the help
-        if (!state.hasSeenHelp && state.level <= 22) {
+        if (!state.hasSeenHelp && state.level <= 23) {
             print("SYSTEM LOCK: Although your commands may be correct, this activity requires you to work through all steps in order. You must use the 'help' command to get your next clue before moving on.", "#ffaa00");
             return;
         }
@@ -190,7 +194,7 @@
                         print(`Connecting to ${parts[1].split('@')[1] || 'server'} on port 22...`, "#888");
                         setTimeout(() => {
                             state.level = 1; 
-                            state.hasSeenHelp = false; // Relock the terminal for Level 1
+                            state.hasSeenHelp = false; 
                             saveGame(); 
                             input.disabled = false;
                             printHeader(); updatePrompt(); input.focus();
@@ -203,7 +207,7 @@
             return;
         }
 
-        // --- LEVEL 1-22: Remote Commands ---
+        // --- LEVEL 1-23: Remote Commands ---
         if (cmd === 'cls') {
             output.innerHTML = "";
             if (state.level === 13) state.level++; 
@@ -214,7 +218,7 @@
                 vfs["Admin"].push(name);
                 vfs[`Admin\\${name}`] = [];
                 state.level++;
-                print("SCREENSHOT OPPORTUNITY: Prove you created your folder!", "#0f0");
+                print("SCREENSHOT OPPORTUNITY 1: Prove you created your folder! (Optional)", "#0f0");
             } else {
                 print(`Security Error: You must use your logged-in name: mkdir ${state.studentName}`, "#ff5555");
             }
@@ -231,11 +235,11 @@
                     files.forEach(f => {
                         const isDir = f.includes(".") ? "              " : "<DIR>         ";
                         const size = f.includes(".") ? Math.floor(Math.random() * 1024) + 128 : "";
-                        print(`03/01/2026  12:00 PM    ${isDir}${size.toString().padStart(8, ' ')} ${f}`);
+                        const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                        print(`${date}  12:00 PM    ${isDir}${size.toString().padStart(8, ' ')} ${f}`);
                     });
                     print(`               ${files.length} File(s)/Dir(s)\n`);
-                    if (state.level === 2 || state.level === 22) state.level = Math.min(state.level + 1, 23);
-                    if (state.level === 23) print("\n[MISSION COMPLETE] Verified Operator: " + state.studentName + "\nTAKE YOUR FINAL SCREENSHOT.", "#0f0");
+                    if (state.level === 2 || state.level === 22) state.level++;
                     break;
                 
                 case cmd.startsWith('cd '):
@@ -315,13 +319,26 @@
                         state.level++;
                     }
                     break;
+                case cmd === 'status':
+                    if (state.level === 23) {
+                        const date = new Date().toLocaleString();
+                        print("\n=======================================", "#0f0");
+                        print(" CYBER RECON: MISSION COMPLETE", "#0f0");
+                        print(` OPERATOR : ${state.studentName}`, "#0f0");
+                        print(` TIMESTAMP: ${date}`, "#0f0");
+                        print("=======================================", "#0f0");
+                        print("\nTAKE A SCREENSHOT OF THIS ENTIRE SCREEN AS PROOF OF COMPLETION.", "#ffff00");
+                        state.level++; // Move to 24 (End Game)
+                    } else {
+                        print("Status unavailable. Mission incomplete.");
+                    }
+                    break;
                 default:
                     print(`'${cmd.split(' ')[0]}' is not recognized as an internal or external command.`);
             }
         }
 
-        // 3. Reset the help lock if they successfully completed the task
-        if (state.level > initialLevel) {
+        if (state.level > initialLevel && state.level <= 23) {
             state.hasSeenHelp = false;
         }
         saveGame();
