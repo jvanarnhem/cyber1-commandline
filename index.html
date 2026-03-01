@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terminal Escape Room - Full Course</title>
+    <title>Terminal Escape Room - Cyber Recon</title>
     <style>
         * { box-sizing: border-box; }
         body { background-color: #0c0c0c; color: #cccccc; font-family: 'Consolas', 'Lucida Console', monospace; margin: 0; padding: 15px; overflow: hidden; }
         #terminal-container { height: 95vh; display: flex; flex-direction: column; overflow-y: auto; cursor: text; }
-        #output { white-space: pre-wrap; word-wrap: break-word; line-height: 1.2; }
+        #output { white-space: pre-wrap; word-wrap: break-word; line-height: 1.3; }
         #input-line { display: flex; align-items: center; margin-top: 2px; }
         #prompt { color: #ffffff; margin-right: 8px; white-space: nowrap; font-weight: bold; }
         input { background: transparent; border: none; color: #ffffff; font-family: inherit; font-size: 16px; outline: none; flex: 1; padding: 0; caret-color: #cccccc; }
+        .doc-text { color: #00ffff; border-left: 2px solid #00ffff; padding-left: 10px; margin: 10px 0; font-style: italic; }
     </style>
 </head>
 <body>
@@ -30,17 +31,23 @@
     const promptLabel = document.getElementById('prompt');
     const container = document.getElementById('terminal-container');
 
-    // --- GAME STATE ---
+    // --- GAME STATE & VIRTUAL FILE SYSTEM ---
     let state = {
         level: 0, 
         studentName: "",
-        currentDir: "Admin",
-        files: ["Desktop", "Documents", "Downloads"]
+        currentDir: "Admin"
+    };
+
+    const vfs = {
+        "Admin": ["SysAdmin", "Cyber_Intel", "Documents"],
+        "Admin\\SysAdmin": ["gui_vs_cli.txt"],
+        "Admin\\Cyber_Intel": ["dangers.log"],
+        "Admin\\Documents": ["cyber_importance.txt"]
     };
 
     let history = [];
     let historyIndex = -1;
-    const SAVE_KEY = 'cmd_escape_save_v4';
+    const SAVE_KEY = 'cmd_escape_save_v5';
 
     function saveGame() { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
     function loadGame() {
@@ -50,25 +57,37 @@
         else { printHeader(); updatePrompt(); }
     }
 
-    // --- THE CURRICULUM (15 Levels) ---
-    // 'prev' explains the command they JUST finished. 'hint' tells them what to do next.
+    // --- THE CURRICULUM (22 Levels) ---
     const tasks = {
-        0: { prev: "", hint: "TASK 0: Connect to the remote system. Type 'ssh [YourName]@server' to log in." },
-        1: { prev: "SUCCESS: 'ssh' (Secure Shell) creates an encrypted network connection to a remote device.", hint: "TASK 1: Handshake. Use 'ver' to identify the OS version." },
-        2: { prev: "SUCCESS: 'ver' displays the exact Windows OS version, essential for knowing what tools will work.", hint: "TASK 2: Recon. Use 'dir' to list current directories." },
-        3: { prev: "SUCCESS: 'dir' (Directory) lists all files and folders in your current location.", hint: "TASK 3: Access. Use 'cd documents' to enter the folder." },
-        4: { prev: "SUCCESS: 'cd' (Change Directory) moves you down into a specific folder.", hint: "TASK 4: Network. Use 'ipconfig' to find the system IP." },
-        5: { prev: "SUCCESS: 'ipconfig' shows your IP address, subnet mask, and default gateway—vital for network troubleshooting.", hint: "TASK 5: Diagnostics. Use 'ping 127.0.0.1' to test the local network stack." },
-        6: { prev: "SUCCESS: 'ping' sends packets to an IP to check connectivity. 127.0.0.1 is the 'loopback' address testing your own network card.", hint: "TASK 6: Sanitize. Logs are full! Use 'cls' to clear the screen." },
-        7: { prev: "SUCCESS: 'cls' (Clear Screen) removes visual clutter, giving you a fresh workspace.", hint: "TASK 7: Retreat. Use 'cd ..' to move back up to the Admin folder." },
-        8: { prev: "SUCCESS: 'cd ..' uses the two dots to represent the 'parent' directory, moving you backwards up the tree.", hint: "TASK 8: Identity. Use 'mkdir [YourName]' to create your workspace." },
-        9: { prev: "SUCCESS: 'mkdir' (Make Directory) creates a brand new, empty folder on the hard drive.", hint: "TASK 9: Enter. Use 'cd [YourName]' to move into your new folder." },
-        10: { prev: "SUCCESS: You used 'cd' again to enter your personalized space.", hint: "TASK 10: Create. Use 'echo access > key.txt' to generate a file with text inside." },
-        11: { prev: "SUCCESS: 'echo' prints text, and the '>' symbol redirects that text into a file instead of the screen.", hint: "TASK 11: Read. Use 'type key.txt' to read the contents of your new file." },
-        12: { prev: "SUCCESS: 'type' outputs the raw text contents of a file directly into the command line.", hint: "TASK 12: Backup. Use 'copy key.txt backup.txt' to duplicate the file." },
-        13: { prev: "SUCCESS: 'copy' duplicates a file from a source to a destination.", hint: "TASK 13: Disguise. Use 'ren key.txt secret.txt' to rename the original file." },
-        14: { prev: "SUCCESS: 'ren' (Rename) changes the name of a file without altering its contents.", hint: "TASK 14: Clean Tracks. Use 'del backup.txt' to delete your backup." },
-        15: { prev: "SUCCESS: 'del' (Delete) permanently removes files from the system.", hint: "TASK 15: Proof. Use 'dir' to verify your final folder contents. TAKE A SCREENSHOT." }
+        0: { prev: "", hint: "TASK 0: Connect to the system. Type 'ssh [YourName]@server' to log in." },
+        1: { prev: "SUCCESS: 'ssh' creates an encrypted network connection to a remote device.", hint: "TASK 1: Handshake. Use 'ver' to identify the OS version." },
+        2: { prev: "SUCCESS: 'ver' displays the OS version. Good for knowing your environment.", hint: "TASK 2: Recon. Use 'dir' to list the directories." },
+        3: { prev: "SUCCESS: You see 3 folders. 'SysAdmin', 'Cyber_Intel', and 'Documents'.", hint: "TASK 3: Access. Use 'cd sysadmin' to enter the first folder." },
+        4: { prev: "SUCCESS: 'cd' moved you down the directory tree.", hint: "TASK 4: Read. Use 'type gui_vs_cli.txt' to read the admin's notes." },
+        5: { prev: "SUCCESS: You read the file directly in the terminal.", hint: "TASK 5: Retreat. Use 'cd ..' to move back to the Admin folder." },
+        6: { prev: "SUCCESS: 'cd ..' moves you up one folder level.", hint: "TASK 6: Access. Use 'cd cyber_intel' to investigate the next folder." },
+        7: { prev: "SUCCESS: You are now in the Cyber_Intel directory.", hint: "TASK 7: Read. Use 'type dangers.log' to read the warning log." },
+        8: { prev: "SUCCESS: You understand the risks of the command line.", hint: "TASK 8: Retreat. Use 'cd ..' to move back to the Admin folder." },
+        9: { prev: "SUCCESS: Back at the root folder.", hint: "TASK 9: Access. Use 'cd documents' to enter the final folder." },
+        10: { prev: "SUCCESS: You are now in the Documents directory.", hint: "TASK 10: Read. Use 'type cyber_importance.txt' to read the final file." },
+        11: { prev: "SUCCESS: You now know why hackers use the CLI.", hint: "TASK 11: Network. Use 'ipconfig' to find the system IP." },
+        12: { prev: "SUCCESS: 'ipconfig' reveals your IP and gateway.", hint: "TASK 12: Diagnostics. Use 'ping 127.0.0.1' to test the local network stack." },
+        13: { prev: "SUCCESS: 'ping' tested your connectivity successfully.", hint: "TASK 13: Sanitize. Logs are full! Use 'cls' to clear the screen." },
+        14: { prev: "SUCCESS: 'cls' removed visual clutter.", hint: "TASK 14: Retreat. Use 'cd ..' to return to the Admin folder." },
+        15: { prev: "SUCCESS: You are ready to build your own tools.", hint: "TASK 15: Identity. Use 'mkdir [YourName]' to create your workspace." },
+        16: { prev: "SUCCESS: 'mkdir' created a new folder.", hint: "TASK 16: Enter. Use 'cd [YourName]' to move into your new folder." },
+        17: { prev: "SUCCESS: You are in your personal directory.", hint: "TASK 17: Create. Use 'echo access > key.txt' to generate a file." },
+        18: { prev: "SUCCESS: 'echo' paired with '>' wrote text directly into a file.", hint: "TASK 18: Read. Use 'type key.txt' to verify its contents." },
+        19: { prev: "SUCCESS: The file contains the word 'access'.", hint: "TASK 19: Backup. Use 'copy key.txt backup.txt' to duplicate the file." },
+        20: { prev: "SUCCESS: 'copy' duplicated the file.", hint: "TASK 20: Disguise. Use 'ren key.txt secret.txt' to rename the original file." },
+        21: { prev: "SUCCESS: 'ren' changed the filename without altering contents.", hint: "TASK 21: Clean. Use 'del backup.txt' to delete the evidence." },
+        22: { prev: "SUCCESS: 'del' permanently erased the backup file.", hint: "TASK 22: Proof. Use 'dir' to verify your final folder contents. TAKE A SCREENSHOT." }
+    };
+
+    const fileContents = {
+        "gui_vs_cli.txt": "DOCUMENT: GUI vs. CLI\n---------------------\nGraphical User Interfaces (GUIs) are slow, resource-heavy, and limit you to the buttons the developer gave you. The Command Line Interface (CLI) allows for rapid execution, deep OS access, and script automation. In a live breach, waiting for a window to load can cost you the network. The CLI is raw power.",
+        "dangers.log": "WARNING LOG: The Double-Edged Sword\n-----------------------------------\nWith root access, the terminal does not ask 'Are you sure?' If you type a recursive delete command like 'del /s /q', it will silently and instantly wipe the entire drive. A single typo in the CLI can destroy a server. Precision is non-negotiable.",
+        "cyber_importance.txt": "DOCUMENT: The Hacker's Language\n-------------------------------\nMalware does not have a user interface. Threat actors live in the terminal. They move laterally through networks using command-line scripts. If you want to defend a network, investigate a breach, or perform penetration testing, you must speak the native language of the operating system."
     };
 
     function startLocalSession() {
@@ -85,16 +104,23 @@
     function updatePrompt() {
         if (state.level > 0) {
             promptLabel.textContent = `C:\\Users\\${state.currentDir}>`;
-            // Dynamically inject their name into the hints
-            tasks[8].hint = `TASK 8: Identity. Use 'mkdir ${state.studentName}' to create your workspace.`;
-            tasks[9].hint = `TASK 9: Enter. Use 'cd ${state.studentName}' to move into your folder.`;
+            tasks[15].hint = `TASK 15: Identity. Use 'mkdir ${state.studentName}' to create your workspace.`;
+            tasks[16].hint = `TASK 16: Enter. Use 'cd ${state.studentName}' to move into your folder.`;
         }
     }
 
-    function print(text, color = "") {
+    function getFilesForCurrentDir() {
+        if (state.currentDir.startsWith(`Admin\\${state.studentName}`)) {
+            return vfs[`Admin\\${state.studentName}`] || [];
+        }
+        return vfs[state.currentDir] || [];
+    }
+
+    function print(text, color = "", className = "") {
         const div = document.createElement('div');
         div.textContent = text;
         if (color) div.style.color = color;
+        if (className) div.className = className;
         output.appendChild(div);
         container.scrollTop = container.scrollHeight;
     }
@@ -130,14 +156,14 @@
 
         if (cmd === 'help') {
             if (currentTask.prev) {
-                print(currentTask.prev, "#0f0"); // Green for learning
+                print(currentTask.prev, "#0f0"); 
                 print("------------------------------------------------", "#555");
             }
-            print(currentTask.hint, "#ffff00"); // Yellow for current task
+            print(currentTask.hint, "#ffff00"); 
             return;
         }
 
-        // LEVEL 0: SSH Login Phase
+        // --- LEVEL 0: SSH Login ---
         if (state.level === 0) {
             if (cmd.startsWith('ssh ')) {
                 const parts = original.split(' ');
@@ -155,23 +181,25 @@
                     }
                 }
                 print("Invalid format. Use: ssh [YourName]@server", "#ff5555");
-            } else { print(`'${cmd.split(' ')[0]}' is not recognized. Use 'help' for instructions.`); }
+            } else { print(`'${cmd.split(' ')[0]}' is not recognized.`); }
             return;
         }
 
-        // LEVEL 1-15: Remote Commands
+        // --- LEVEL 1-22: Remote Commands ---
         if (cmd === 'cls') {
             output.innerHTML = "";
-            if (state.level === 6) { state.level++; saveGame(); print("Screen cleared. Type 'help'."); }
+            if (state.level === 13) { state.level++; saveGame(); print("Screen cleared. Type 'help'."); }
             return;
         }
 
-        if (state.level === 8 && cmd.startsWith('mkdir ')) {
+        // Dynamic directory creation (Level 15)
+        if (state.level === 15 && cmd.startsWith('mkdir ')) {
             const name = original.split(' ')[1];
             if (name === state.studentName) {
-                state.files.push(name);
+                vfs["Admin"].push(name);
+                vfs[`Admin\\${name}`] = []; // Initialize empty personal folder
                 state.level++; saveGame();
-                print("SCREENSHOT 1: Prove you created your folder!", "#0f0");
+                print("SCREENSHOT OPPORTUNITY: Prove you created your folder!", "#0f0");
                 return;
             } else {
                 print(`Security Error: You must use your logged-in name: mkdir ${state.studentName}`, "#ff5555");
@@ -179,75 +207,101 @@
             }
         }
 
-        if (state.level === 9 && cmd === `cd ${state.studentName.toLowerCase()}`) {
-            state.currentDir = `${state.currentDir}\\${state.studentName}`;
-            state.files = [];
-            state.level++; updatePrompt(); saveGame(); return;
-        }
-
-        switch(cmd) {
-            case 'ver':
+        switch(true) {
+            case cmd === 'ver':
                 print("Microsoft Windows [Version 10.0.19045]");
                 if (state.level === 1) state.level++;
                 break;
-            case 'dir':
-                print(` Volume in drive C has no label.\n Volume Serial Number is 1A2B-3C4D\n\n Directory of ${promptLabel.textContent.replace('>','')}\n`);
-                state.files.forEach(f => {
+            case cmd === 'dir':
+                print(` Volume in drive C has no label.\n Directory of ${promptLabel.textContent.replace('>','')}\n`);
+                let files = getFilesForCurrentDir();
+                files.forEach(f => {
                     const isDir = f.includes(".") ? "              " : "<DIR>         ";
-                    const size = f.includes(".") ? Math.floor(Math.random() * 1024) + 12 : "";
+                    const size = f.includes(".") ? Math.floor(Math.random() * 1024) + 128 : "";
                     print(`03/01/2026  12:00 PM    ${isDir}${size.toString().padStart(8, ' ')} ${f}`);
                 });
-                print(`               ${state.files.length} File(s)              Bytes\n               0 Dir(s)   42,849,112,064 bytes free\n`);
-                if (state.level === 2 || state.level === 15) state.level = Math.min(state.level + 1, 16);
-                if (state.level === 16) print("\n[MISSION COMPLETE] Verified Operator: " + state.studentName + "\nTAKE YOUR FINAL SCREENSHOT.", "#0f0");
+                print(`               ${files.length} File(s)/Dir(s)\n`);
+                if (state.level === 2 || state.level === 22) state.level = Math.min(state.level + 1, 23);
+                if (state.level === 23) print("\n[MISSION COMPLETE] Verified Operator: " + state.studentName + "\nTAKE YOUR FINAL SCREENSHOT.", "#0f0");
                 break;
-            case 'cd documents':
-                if (state.level >= 3 && state.currentDir === "Admin") {
-                    state.currentDir = "Admin\\Documents";
-                    state.files = ["top_secret.txt"];
-                    updatePrompt();
-                    if (state.level === 3) state.level++;
-                } else if (state.currentDir !== "Admin") { print("The system cannot find the path specified."); }
-                break;
-            case 'ipconfig':
-                print("\nWindows IP Configuration\n\nEthernet adapter Ethernet0:\n   Connection-specific DNS Suffix  . : localdomain\n   IPv4 Address. . . . . . . . . . . : 192.168.1.42\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.1.1\n");
-                if (state.level === 4) state.level++;
-                break;
-            case 'ping 127.0.0.1':
-                print("\nPinging 127.0.0.1 with 32 bytes of data:\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\n\nPing statistics for 127.0.0.1:\n    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),\n");
-                if (state.level === 5) state.level++;
-                break;
-            case 'cd ..':
-                if (state.currentDir.includes('\\')) {
-                    let parts = state.currentDir.split('\\');
-                    parts.pop();
-                    state.currentDir = parts.join('\\');
-                    if (state.currentDir === "Admin") state.files = ["Desktop", "Documents", "Downloads"];
-                    updatePrompt();
-                    if (state.level === 7) state.level++;
+            
+            // Directory Navigation Logic
+            case cmd.startsWith('cd '):
+                const target = original.substring(3).trim();
+                if (target === '..') {
+                    if (state.currentDir.includes('\\')) {
+                        let parts = state.currentDir.split('\\');
+                        parts.pop();
+                        state.currentDir = parts.join('\\');
+                        updatePrompt();
+                        if (state.level === 5 || state.level === 8 || state.level === 14) state.level++;
+                    }
+                } else {
+                    // Try to enter folder (case insensitive check)
+                    let currentFiles = getFilesForCurrentDir();
+                    let matchedFolder = currentFiles.find(f => f.toLowerCase() === target.toLowerCase() && !f.includes("."));
+                    if (matchedFolder) {
+                        state.currentDir = `${state.currentDir}\\${matchedFolder}`;
+                        updatePrompt();
+                        if ((state.level === 3 && target.toLowerCase() === 'sysadmin') ||
+                            (state.level === 6 && target.toLowerCase() === 'cyber_intel') ||
+                            (state.level === 9 && target.toLowerCase() === 'documents') ||
+                            (state.level === 16 && target.toLowerCase() === state.studentName.toLowerCase())) {
+                            state.level++;
+                        }
+                    } else {
+                        print("The system cannot find the path specified.");
+                    }
                 }
                 break;
-            case 'echo access > key.txt':
-                if (state.level === 10) { state.files.push("key.txt"); state.level++; print("File created."); }
+
+            // Reading files
+            case cmd.startsWith('type '):
+                const fileTarget = original.substring(5).trim().toLowerCase();
+                let currentDirFiles = getFilesForCurrentDir().map(f => f.toLowerCase());
+                if (currentDirFiles.includes(fileTarget)) {
+                    if (fileContents[fileTarget]) {
+                        print(fileContents[fileTarget], "", "doc-text");
+                        if ((state.level === 4 && fileTarget === 'gui_vs_cli.txt') ||
+                            (state.level === 7 && fileTarget === 'dangers.log') ||
+                            (state.level === 10 && fileTarget === 'cyber_importance.txt')) {
+                            state.level++;
+                        }
+                    } else if (fileTarget === 'key.txt') {
+                        print("access", "", "doc-text");
+                        if (state.level === 18) state.level++;
+                    }
+                } else {
+                    print("The system cannot find the file specified.");
+                }
                 break;
-            case 'type key.txt':
-                if (state.level === 11) { print("access"); state.level++; }
-                else if (state.files.includes("key.txt")) { print("access"); }
-                else { print("The system cannot find the file specified."); }
+
+            case cmd === 'ipconfig':
+                print("\nEthernet adapter Ethernet0:\n   IPv4 Address. . . . . . . . . . . : 192.168.1.42\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.1.1\n");
+                if (state.level === 11) state.level++;
                 break;
-            case 'copy key.txt backup.txt':
-                if (state.level === 12) { state.files.push("backup.txt"); state.level++; print("        1 file(s) copied."); }
+            case cmd === 'ping 127.0.0.1':
+                print("\nPinging 127.0.0.1 with 32 bytes of data:\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\n\nPing statistics for 127.0.0.1:\n    Packets: Sent = 4, Received = 4, Lost = 0\n");
+                if (state.level === 12) state.level++;
                 break;
-            case 'ren key.txt secret.txt':
-                if (state.level === 13) {
-                    state.files = state.files.filter(f => f !== 'key.txt');
-                    state.files.push("secret.txt");
+            case cmd === 'echo access > key.txt':
+                if (state.level === 17) { vfs[`Admin\\${state.studentName}`].push("key.txt"); state.level++; print("File created."); }
+                break;
+            case cmd === 'copy key.txt backup.txt':
+                if (state.level === 19) { vfs[`Admin\\${state.studentName}`].push("backup.txt"); state.level++; print("        1 file(s) copied."); }
+                break;
+            case cmd === 'ren key.txt secret.txt':
+                if (state.level === 20) {
+                    let pDir = `Admin\\${state.studentName}`;
+                    vfs[pDir] = vfs[pDir].filter(f => f !== 'key.txt');
+                    vfs[pDir].push("secret.txt");
                     state.level++; 
                 }
                 break;
-            case 'del backup.txt':
-                if (state.level === 14) {
-                    state.files = state.files.filter(f => f !== 'backup.txt');
+            case cmd === 'del backup.txt':
+                if (state.level === 21) {
+                    let pDir = `Admin\\${state.studentName}`;
+                    vfs[pDir] = vfs[pDir].filter(f => f !== 'backup.txt');
                     state.level++;
                 }
                 break;
