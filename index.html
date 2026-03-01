@@ -35,7 +35,8 @@
     let state = {
         level: 0, 
         studentName: "",
-        currentDir: "Admin"
+        currentDir: "Admin",
+        hasSeenHelp: false // NEW: Enforces the Read-Then-Do loop
     };
 
     const vfs = {
@@ -47,7 +48,7 @@
 
     let history = [];
     let historyIndex = -1;
-    const SAVE_KEY = 'cmd_escape_save_v5';
+    const SAVE_KEY = 'cmd_escape_save_v6';
 
     function saveGame() { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
     function loadGame() {
@@ -134,6 +135,8 @@
             input.value = '';
 
             if (rawValue.trim() === "") { container.scrollTop = container.scrollHeight; return; }
+            
+            // The hidden Admin bypass always works
             if (cmdLower === 'reset game') { localStorage.removeItem(SAVE_KEY); location.reload(); return; }
 
             history.push(rawValue);
@@ -152,14 +155,26 @@
     });
 
     function handleCommand(cmd, original) {
+        const initialLevel = state.level;
         const currentTask = tasks[state.level];
 
+        // 1. Process 'help' command
         if (cmd === 'help') {
-            if (currentTask.prev) {
+            if (currentTask && currentTask.prev) {
                 print(currentTask.prev, "#0f0"); 
                 print("------------------------------------------------", "#555");
             }
-            print(currentTask.hint, "#ffff00"); 
+            if (currentTask) {
+                print(currentTask.hint, "#ffff00"); 
+                state.hasSeenHelp = true; // Unlock the terminal for this level
+                saveGame();
+            }
+            return;
+        }
+
+        // 2. The Strict Guardrail: Block execution if they haven't read the help
+        if (!state.hasSeenHelp && state.level <= 22) {
+            print("SYSTEM LOCK: Although your commands may be correct, this activity requires you to work through all steps in order. You must use the 'help' command to get your next clue before moving on.", "#ffaa00");
             return;
         }
 
@@ -174,7 +189,10 @@
                         input.disabled = true;
                         print(`Connecting to ${parts[1].split('@')[1] || 'server'} on port 22...`, "#888");
                         setTimeout(() => {
-                            state.level = 1; saveGame(); input.disabled = false;
+                            state.level = 1; 
+                            state.hasSeenHelp = false; // Relock the terminal for Level 1
+                            saveGame(); 
+                            input.disabled = false;
                             printHeader(); updatePrompt(); input.focus();
                         }, 1200);
                         return;
@@ -188,125 +206,123 @@
         // --- LEVEL 1-22: Remote Commands ---
         if (cmd === 'cls') {
             output.innerHTML = "";
-            if (state.level === 13) { state.level++; saveGame(); print("Screen cleared. Type 'help'."); }
-            return;
+            if (state.level === 13) state.level++; 
         }
-
-        // Dynamic directory creation (Level 15)
-        if (state.level === 15 && cmd.startsWith('mkdir ')) {
+        else if (state.level === 15 && cmd.startsWith('mkdir ')) {
             const name = original.split(' ')[1];
             if (name === state.studentName) {
                 vfs["Admin"].push(name);
-                vfs[`Admin\\${name}`] = []; // Initialize empty personal folder
-                state.level++; saveGame();
+                vfs[`Admin\\${name}`] = [];
+                state.level++;
                 print("SCREENSHOT OPPORTUNITY: Prove you created your folder!", "#0f0");
-                return;
             } else {
                 print(`Security Error: You must use your logged-in name: mkdir ${state.studentName}`, "#ff5555");
-                return;
+            }
+        }
+        else {
+            switch(true) {
+                case cmd === 'ver':
+                    print("Microsoft Windows [Version 10.0.19045]");
+                    if (state.level === 1) state.level++;
+                    break;
+                case cmd === 'dir':
+                    print(` Volume in drive C has no label.\n Directory of ${promptLabel.textContent.replace('>','')}\n`);
+                    let files = getFilesForCurrentDir();
+                    files.forEach(f => {
+                        const isDir = f.includes(".") ? "              " : "<DIR>         ";
+                        const size = f.includes(".") ? Math.floor(Math.random() * 1024) + 128 : "";
+                        print(`03/01/2026  12:00 PM    ${isDir}${size.toString().padStart(8, ' ')} ${f}`);
+                    });
+                    print(`               ${files.length} File(s)/Dir(s)\n`);
+                    if (state.level === 2 || state.level === 22) state.level = Math.min(state.level + 1, 23);
+                    if (state.level === 23) print("\n[MISSION COMPLETE] Verified Operator: " + state.studentName + "\nTAKE YOUR FINAL SCREENSHOT.", "#0f0");
+                    break;
+                
+                case cmd.startsWith('cd '):
+                    const target = original.substring(3).trim();
+                    if (target === '..') {
+                        if (state.currentDir.includes('\\')) {
+                            let parts = state.currentDir.split('\\');
+                            parts.pop();
+                            state.currentDir = parts.join('\\');
+                            updatePrompt();
+                            if (state.level === 5 || state.level === 8 || state.level === 14) state.level++;
+                        }
+                    } else {
+                        let currentFiles = getFilesForCurrentDir();
+                        let matchedFolder = currentFiles.find(f => f.toLowerCase() === target.toLowerCase() && !f.includes("."));
+                        if (matchedFolder) {
+                            state.currentDir = `${state.currentDir}\\${matchedFolder}`;
+                            updatePrompt();
+                            if ((state.level === 3 && target.toLowerCase() === 'sysadmin') ||
+                                (state.level === 6 && target.toLowerCase() === 'cyber_intel') ||
+                                (state.level === 9 && target.toLowerCase() === 'documents') ||
+                                (state.level === 16 && target.toLowerCase() === state.studentName.toLowerCase())) {
+                                state.level++;
+                            }
+                        } else {
+                            print("The system cannot find the path specified.");
+                        }
+                    }
+                    break;
+
+                case cmd.startsWith('type '):
+                    const fileTarget = original.substring(5).trim().toLowerCase();
+                    let currentDirFiles = getFilesForCurrentDir().map(f => f.toLowerCase());
+                    if (currentDirFiles.includes(fileTarget)) {
+                        if (fileContents[fileTarget]) {
+                            print(fileContents[fileTarget], "", "doc-text");
+                            if ((state.level === 4 && fileTarget === 'gui_vs_cli.txt') ||
+                                (state.level === 7 && fileTarget === 'dangers.log') ||
+                                (state.level === 10 && fileTarget === 'cyber_importance.txt')) {
+                                state.level++;
+                            }
+                        } else if (fileTarget === 'key.txt') {
+                            print("access", "", "doc-text");
+                            if (state.level === 18) state.level++;
+                        }
+                    } else {
+                        print("The system cannot find the file specified.");
+                    }
+                    break;
+
+                case cmd === 'ipconfig':
+                    print("\nEthernet adapter Ethernet0:\n   IPv4 Address. . . . . . . . . . . : 192.168.1.42\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.1.1\n");
+                    if (state.level === 11) state.level++;
+                    break;
+                case cmd === 'ping 127.0.0.1':
+                    print("\nPinging 127.0.0.1 with 32 bytes of data:\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\n\nPing statistics for 127.0.0.1:\n    Packets: Sent = 4, Received = 4, Lost = 0\n");
+                    if (state.level === 12) state.level++;
+                    break;
+                case cmd === 'echo access > key.txt':
+                    if (state.level === 17) { vfs[`Admin\\${state.studentName}`].push("key.txt"); state.level++; print("File created."); }
+                    break;
+                case cmd === 'copy key.txt backup.txt':
+                    if (state.level === 19) { vfs[`Admin\\${state.studentName}`].push("backup.txt"); state.level++; print("        1 file(s) copied."); }
+                    break;
+                case cmd === 'ren key.txt secret.txt':
+                    if (state.level === 20) {
+                        let pDir = `Admin\\${state.studentName}`;
+                        vfs[pDir] = vfs[pDir].filter(f => f !== 'key.txt');
+                        vfs[pDir].push("secret.txt");
+                        state.level++; 
+                    }
+                    break;
+                case cmd === 'del backup.txt':
+                    if (state.level === 21) {
+                        let pDir = `Admin\\${state.studentName}`;
+                        vfs[pDir] = vfs[pDir].filter(f => f !== 'backup.txt');
+                        state.level++;
+                    }
+                    break;
+                default:
+                    print(`'${cmd.split(' ')[0]}' is not recognized as an internal or external command.`);
             }
         }
 
-        switch(true) {
-            case cmd === 'ver':
-                print("Microsoft Windows [Version 10.0.19045]");
-                if (state.level === 1) state.level++;
-                break;
-            case cmd === 'dir':
-                print(` Volume in drive C has no label.\n Directory of ${promptLabel.textContent.replace('>','')}\n`);
-                let files = getFilesForCurrentDir();
-                files.forEach(f => {
-                    const isDir = f.includes(".") ? "              " : "<DIR>         ";
-                    const size = f.includes(".") ? Math.floor(Math.random() * 1024) + 128 : "";
-                    print(`03/01/2026  12:00 PM    ${isDir}${size.toString().padStart(8, ' ')} ${f}`);
-                });
-                print(`               ${files.length} File(s)/Dir(s)\n`);
-                if (state.level === 2 || state.level === 22) state.level = Math.min(state.level + 1, 23);
-                if (state.level === 23) print("\n[MISSION COMPLETE] Verified Operator: " + state.studentName + "\nTAKE YOUR FINAL SCREENSHOT.", "#0f0");
-                break;
-            
-            // Directory Navigation Logic
-            case cmd.startsWith('cd '):
-                const target = original.substring(3).trim();
-                if (target === '..') {
-                    if (state.currentDir.includes('\\')) {
-                        let parts = state.currentDir.split('\\');
-                        parts.pop();
-                        state.currentDir = parts.join('\\');
-                        updatePrompt();
-                        if (state.level === 5 || state.level === 8 || state.level === 14) state.level++;
-                    }
-                } else {
-                    // Try to enter folder (case insensitive check)
-                    let currentFiles = getFilesForCurrentDir();
-                    let matchedFolder = currentFiles.find(f => f.toLowerCase() === target.toLowerCase() && !f.includes("."));
-                    if (matchedFolder) {
-                        state.currentDir = `${state.currentDir}\\${matchedFolder}`;
-                        updatePrompt();
-                        if ((state.level === 3 && target.toLowerCase() === 'sysadmin') ||
-                            (state.level === 6 && target.toLowerCase() === 'cyber_intel') ||
-                            (state.level === 9 && target.toLowerCase() === 'documents') ||
-                            (state.level === 16 && target.toLowerCase() === state.studentName.toLowerCase())) {
-                            state.level++;
-                        }
-                    } else {
-                        print("The system cannot find the path specified.");
-                    }
-                }
-                break;
-
-            // Reading files
-            case cmd.startsWith('type '):
-                const fileTarget = original.substring(5).trim().toLowerCase();
-                let currentDirFiles = getFilesForCurrentDir().map(f => f.toLowerCase());
-                if (currentDirFiles.includes(fileTarget)) {
-                    if (fileContents[fileTarget]) {
-                        print(fileContents[fileTarget], "", "doc-text");
-                        if ((state.level === 4 && fileTarget === 'gui_vs_cli.txt') ||
-                            (state.level === 7 && fileTarget === 'dangers.log') ||
-                            (state.level === 10 && fileTarget === 'cyber_importance.txt')) {
-                            state.level++;
-                        }
-                    } else if (fileTarget === 'key.txt') {
-                        print("access", "", "doc-text");
-                        if (state.level === 18) state.level++;
-                    }
-                } else {
-                    print("The system cannot find the file specified.");
-                }
-                break;
-
-            case cmd === 'ipconfig':
-                print("\nEthernet adapter Ethernet0:\n   IPv4 Address. . . . . . . . . . . : 192.168.1.42\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.1.1\n");
-                if (state.level === 11) state.level++;
-                break;
-            case cmd === 'ping 127.0.0.1':
-                print("\nPinging 127.0.0.1 with 32 bytes of data:\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\n\nPing statistics for 127.0.0.1:\n    Packets: Sent = 4, Received = 4, Lost = 0\n");
-                if (state.level === 12) state.level++;
-                break;
-            case cmd === 'echo access > key.txt':
-                if (state.level === 17) { vfs[`Admin\\${state.studentName}`].push("key.txt"); state.level++; print("File created."); }
-                break;
-            case cmd === 'copy key.txt backup.txt':
-                if (state.level === 19) { vfs[`Admin\\${state.studentName}`].push("backup.txt"); state.level++; print("        1 file(s) copied."); }
-                break;
-            case cmd === 'ren key.txt secret.txt':
-                if (state.level === 20) {
-                    let pDir = `Admin\\${state.studentName}`;
-                    vfs[pDir] = vfs[pDir].filter(f => f !== 'key.txt');
-                    vfs[pDir].push("secret.txt");
-                    state.level++; 
-                }
-                break;
-            case cmd === 'del backup.txt':
-                if (state.level === 21) {
-                    let pDir = `Admin\\${state.studentName}`;
-                    vfs[pDir] = vfs[pDir].filter(f => f !== 'backup.txt');
-                    state.level++;
-                }
-                break;
-            default:
-                print(`'${cmd.split(' ')[0]}' is not recognized as an internal or external command.`);
+        // 3. Reset the help lock if they successfully completed the task
+        if (state.level > initialLevel) {
+            state.hasSeenHelp = false;
         }
         saveGame();
     }
