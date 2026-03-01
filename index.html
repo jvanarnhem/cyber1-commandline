@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terminal Escape Room</title>
+    <title>Terminal Escape Room - Full Course</title>
     <style>
         * { box-sizing: border-box; }
         body { background-color: #0c0c0c; color: #cccccc; font-family: 'Consolas', 'Lucida Console', monospace; margin: 0; padding: 15px; overflow: hidden; }
         #terminal-container { height: 95vh; display: flex; flex-direction: column; overflow-y: auto; cursor: text; }
-        #output { white-space: pre-wrap; word-wrap: break-word; }
+        #output { white-space: pre-wrap; word-wrap: break-word; line-height: 1.2; }
         #input-line { display: flex; align-items: center; margin-top: 2px; }
         #prompt { color: #ffffff; margin-right: 8px; white-space: nowrap; font-weight: bold; }
         input { background: transparent; border: none; color: #ffffff; font-family: inherit; font-size: 16px; outline: none; flex: 1; padding: 0; caret-color: #cccccc; }
-        .sys-msg { color: #888888; }
     </style>
 </head>
 <body>
@@ -33,7 +32,7 @@
 
     // --- GAME STATE ---
     let state = {
-        level: 0, // Level 0 is the SSH login phase
+        level: 0, 
         studentName: "",
         currentDir: "Admin",
         files: ["Desktop", "Documents", "Downloads"]
@@ -41,35 +40,35 @@
 
     let history = [];
     let historyIndex = -1;
-    const SAVE_KEY = 'cmd_escape_save_v3';
+    const SAVE_KEY = 'cmd_escape_save_v4';
 
     function saveGame() { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
     function loadGame() {
         const saved = localStorage.getItem(SAVE_KEY);
-        if (saved) {
-            state = JSON.parse(saved);
-        }
-        
-        if (state.level === 0) {
-            startLocalSession();
-        } else {
-            printHeader();
-            updatePrompt();
-        }
+        if (saved) { state = JSON.parse(saved); }
+        if (state.level === 0) { startLocalSession(); } 
+        else { printHeader(); updatePrompt(); }
     }
 
+    // --- THE CURRICULUM (15 Levels) ---
+    // 'prev' explains the command they JUST finished. 'hint' tells them what to do next.
     const tasks = {
-        0: { hint: "TASK 0: Connect to the remote system. Type 'ssh [YourName]@server' to log in.", cmd: "ssh" },
-        1: { hint: "TASK 1: Handshake. Use 'ver' to identify the OS version.", cmd: "ver" },
-        2: { hint: "TASK 2: Recon. Use 'dir' to list current directories.", cmd: "dir" },
-        3: { hint: "TASK 3: Access. Use 'cd documents' to enter the folder.", cmd: "cd documents" },
-        4: { hint: "TASK 4: Network. Use 'ipconfig' to find the system IP.", cmd: "ipconfig" },
-        5: { hint: "TASK 5: Sanitize. Logs are full! Use 'cls' to clear the screen.", cmd: "cls" },
-        6: { hint: "TASK 6: Identity. Use 'mkdir [YourName]' to create your workspace.", cmd: "mkdir" },
-        7: { hint: "TASK 7: Enter. Use 'cd [YourName]' to move into your folder.", cmd: "cd" },
-        8: { hint: "TASK 8: Create. Use 'echo. > key.txt' to generate a file.", cmd: "echo. > key.txt" },
-        9: { hint: "TASK 9: Disguise. Use 'ren key.txt secret.txt' to hide it.", cmd: "ren key.txt secret.txt" },
-        10: { hint: "TASK 10: Proof. Use 'dir' to verify. TAKE A SCREENSHOT.", cmd: "dir" }
+        0: { prev: "", hint: "TASK 0: Connect to the remote system. Type 'ssh [YourName]@server' to log in." },
+        1: { prev: "SUCCESS: 'ssh' (Secure Shell) creates an encrypted network connection to a remote device.", hint: "TASK 1: Handshake. Use 'ver' to identify the OS version." },
+        2: { prev: "SUCCESS: 'ver' displays the exact Windows OS version, essential for knowing what tools will work.", hint: "TASK 2: Recon. Use 'dir' to list current directories." },
+        3: { prev: "SUCCESS: 'dir' (Directory) lists all files and folders in your current location.", hint: "TASK 3: Access. Use 'cd documents' to enter the folder." },
+        4: { prev: "SUCCESS: 'cd' (Change Directory) moves you down into a specific folder.", hint: "TASK 4: Network. Use 'ipconfig' to find the system IP." },
+        5: { prev: "SUCCESS: 'ipconfig' shows your IP address, subnet mask, and default gateway—vital for network troubleshooting.", hint: "TASK 5: Diagnostics. Use 'ping 127.0.0.1' to test the local network stack." },
+        6: { prev: "SUCCESS: 'ping' sends packets to an IP to check connectivity. 127.0.0.1 is the 'loopback' address testing your own network card.", hint: "TASK 6: Sanitize. Logs are full! Use 'cls' to clear the screen." },
+        7: { prev: "SUCCESS: 'cls' (Clear Screen) removes visual clutter, giving you a fresh workspace.", hint: "TASK 7: Retreat. Use 'cd ..' to move back up to the Admin folder." },
+        8: { prev: "SUCCESS: 'cd ..' uses the two dots to represent the 'parent' directory, moving you backwards up the tree.", hint: "TASK 8: Identity. Use 'mkdir [YourName]' to create your workspace." },
+        9: { prev: "SUCCESS: 'mkdir' (Make Directory) creates a brand new, empty folder on the hard drive.", hint: "TASK 9: Enter. Use 'cd [YourName]' to move into your new folder." },
+        10: { prev: "SUCCESS: You used 'cd' again to enter your personalized space.", hint: "TASK 10: Create. Use 'echo access > key.txt' to generate a file with text inside." },
+        11: { prev: "SUCCESS: 'echo' prints text, and the '>' symbol redirects that text into a file instead of the screen.", hint: "TASK 11: Read. Use 'type key.txt' to read the contents of your new file." },
+        12: { prev: "SUCCESS: 'type' outputs the raw text contents of a file directly into the command line.", hint: "TASK 12: Backup. Use 'copy key.txt backup.txt' to duplicate the file." },
+        13: { prev: "SUCCESS: 'copy' duplicates a file from a source to a destination.", hint: "TASK 13: Disguise. Use 'ren key.txt secret.txt' to rename the original file." },
+        14: { prev: "SUCCESS: 'ren' (Rename) changes the name of a file without altering its contents.", hint: "TASK 14: Clean Tracks. Use 'del backup.txt' to delete your backup." },
+        15: { prev: "SUCCESS: 'del' (Delete) permanently removes files from the system.", hint: "TASK 15: Proof. Use 'dir' to verify your final folder contents. TAKE A SCREENSHOT." }
     };
 
     function startLocalSession() {
@@ -86,8 +85,9 @@
     function updatePrompt() {
         if (state.level > 0) {
             promptLabel.textContent = `C:\\Users\\${state.currentDir}>`;
-            tasks[6].hint = `TASK 6: Identity. Use 'mkdir ${state.studentName}' to create your workspace.`;
-            tasks[7].hint = `TASK 7: Enter. Use 'cd ${state.studentName}' to move into your folder.`;
+            // Dynamically inject their name into the hints
+            tasks[8].hint = `TASK 8: Identity. Use 'mkdir ${state.studentName}' to create your workspace.`;
+            tasks[9].hint = `TASK 9: Enter. Use 'cd ${state.studentName}' to move into your folder.`;
         }
     }
 
@@ -107,23 +107,11 @@
             print(`${promptLabel.textContent}${rawValue}`);
             input.value = '';
 
-            // Handle empty enter
-            if (rawValue.trim() === "") {
-                container.scrollTop = container.scrollHeight;
-                return;
-            }
+            if (rawValue.trim() === "") { container.scrollTop = container.scrollHeight; return; }
+            if (cmdLower === 'reset game') { localStorage.removeItem(SAVE_KEY); location.reload(); return; }
 
-            // Hidden Admin Command
-            if (cmdLower === 'reset game') {
-                localStorage.removeItem(SAVE_KEY);
-                location.reload();
-                return;
-            }
-
-            // History tracking
             history.push(rawValue);
             historyIndex = history.length;
-
             handleCommand(cmdLower, rawValue.trim());
         } 
         else if (e.key === 'ArrowUp') {
@@ -141,11 +129,15 @@
         const currentTask = tasks[state.level];
 
         if (cmd === 'help') {
-            print(currentTask.hint, "#ffff00");
+            if (currentTask.prev) {
+                print(currentTask.prev, "#0f0"); // Green for learning
+                print("------------------------------------------------", "#555");
+            }
+            print(currentTask.hint, "#ffff00"); // Yellow for current task
             return;
         }
 
-        // --- LEVEL 0: SSH Login Phase ---
+        // LEVEL 0: SSH Login Phase
         if (state.level === 0) {
             if (cmd.startsWith('ssh ')) {
                 const parts = original.split(' ');
@@ -153,42 +145,32 @@
                     const name = parts[1].split('@')[0];
                     if (name.length >= 2) {
                         state.studentName = name;
-                        
-                        // Fake connection delay for authenticity
                         input.disabled = true;
                         print(`Connecting to ${parts[1].split('@')[1] || 'server'} on port 22...`, "#888");
-                        
                         setTimeout(() => {
-                            state.level = 1;
-                            saveGame();
-                            input.disabled = false;
-                            printHeader();
-                            updatePrompt();
-                            input.focus();
+                            state.level = 1; saveGame(); input.disabled = false;
+                            printHeader(); updatePrompt(); input.focus();
                         }, 1200);
                         return;
                     }
                 }
                 print("Invalid format. Use: ssh [YourName]@server", "#ff5555");
-            } else {
-                print(`'${cmd.split(' ')[0]}' is not recognized. Use 'help' for instructions.`);
-            }
+            } else { print(`'${cmd.split(' ')[0]}' is not recognized. Use 'help' for instructions.`); }
             return;
         }
 
-        // --- LEVEL 1-10: Remote Escape Room ---
+        // LEVEL 1-15: Remote Commands
         if (cmd === 'cls') {
             output.innerHTML = "";
-            if (state.level === 5) { state.level++; saveGame(); print("Screen cleared. Type 'help'."); }
+            if (state.level === 6) { state.level++; saveGame(); print("Screen cleared. Type 'help'."); }
             return;
         }
 
-        if (state.level === 6 && cmd.startsWith('mkdir ')) {
+        if (state.level === 8 && cmd.startsWith('mkdir ')) {
             const name = original.split(' ')[1];
             if (name === state.studentName) {
                 state.files.push(name);
-                state.level++;
-                saveGame();
+                state.level++; saveGame();
                 print("SCREENSHOT 1: Prove you created your folder!", "#0f0");
                 return;
             } else {
@@ -197,13 +179,10 @@
             }
         }
 
-        if (state.level === 7 && cmd === `cd ${state.studentName.toLowerCase()}`) {
+        if (state.level === 9 && cmd === `cd ${state.studentName.toLowerCase()}`) {
             state.currentDir = `${state.currentDir}\\${state.studentName}`;
             state.files = [];
-            state.level++;
-            updatePrompt();
-            saveGame();
-            return;
+            state.level++; updatePrompt(); saveGame(); return;
         }
 
         switch(cmd) {
@@ -219,29 +198,61 @@
                     print(`03/01/2026  12:00 PM    ${isDir}${size.toString().padStart(8, ' ')} ${f}`);
                 });
                 print(`               ${state.files.length} File(s)              Bytes\n               0 Dir(s)   42,849,112,064 bytes free\n`);
-                if (state.level === 2 || state.level === 10) state.level = Math.min(state.level + 1, 11);
-                if (state.level === 11) print("\n[MISSION COMPLETE] Verified Operator: " + state.studentName, "#0f0");
+                if (state.level === 2 || state.level === 15) state.level = Math.min(state.level + 1, 16);
+                if (state.level === 16) print("\n[MISSION COMPLETE] Verified Operator: " + state.studentName + "\nTAKE YOUR FINAL SCREENSHOT.", "#0f0");
                 break;
             case 'cd documents':
-                if (state.level >= 3) {
+                if (state.level >= 3 && state.currentDir === "Admin") {
                     state.currentDir = "Admin\\Documents";
                     state.files = ["top_secret.txt"];
                     updatePrompt();
                     if (state.level === 3) state.level++;
-                }
+                } else if (state.currentDir !== "Admin") { print("The system cannot find the path specified."); }
                 break;
             case 'ipconfig':
-                print("\nWindows IP Configuration\n\nEthernet adapter Ethernet0:\n\n   Connection-specific DNS Suffix  . : localdomain\n   IPv4 Address. . . . . . . . . . . : 192.168.1.42\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.1.1\n");
+                print("\nWindows IP Configuration\n\nEthernet adapter Ethernet0:\n   Connection-specific DNS Suffix  . : localdomain\n   IPv4 Address. . . . . . . . . . . : 192.168.1.42\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.1.1\n");
                 if (state.level === 4) state.level++;
                 break;
-            case 'echo. > key.txt':
-                if (state.level === 8) { state.files.push("key.txt"); state.level++; }
+            case 'ping 127.0.0.1':
+                print("\nPinging 127.0.0.1 with 32 bytes of data:\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\nReply from 127.0.0.1: bytes=32 time<1ms TTL=128\n\nPing statistics for 127.0.0.1:\n    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),\n");
+                if (state.level === 5) state.level++;
+                break;
+            case 'cd ..':
+                if (state.currentDir.includes('\\')) {
+                    let parts = state.currentDir.split('\\');
+                    parts.pop();
+                    state.currentDir = parts.join('\\');
+                    if (state.currentDir === "Admin") state.files = ["Desktop", "Documents", "Downloads"];
+                    updatePrompt();
+                    if (state.level === 7) state.level++;
+                }
+                break;
+            case 'echo access > key.txt':
+                if (state.level === 10) { state.files.push("key.txt"); state.level++; print("File created."); }
+                break;
+            case 'type key.txt':
+                if (state.level === 11) { print("access"); state.level++; }
+                else if (state.files.includes("key.txt")) { print("access"); }
+                else { print("The system cannot find the file specified."); }
+                break;
+            case 'copy key.txt backup.txt':
+                if (state.level === 12) { state.files.push("backup.txt"); state.level++; print("        1 file(s) copied."); }
                 break;
             case 'ren key.txt secret.txt':
-                if (state.level === 9) { state.files = ["secret.txt"]; state.level++; }
+                if (state.level === 13) {
+                    state.files = state.files.filter(f => f !== 'key.txt');
+                    state.files.push("secret.txt");
+                    state.level++; 
+                }
+                break;
+            case 'del backup.txt':
+                if (state.level === 14) {
+                    state.files = state.files.filter(f => f !== 'backup.txt');
+                    state.level++;
+                }
                 break;
             default:
-                print(`'${cmd.split(' ')[0]}' is not recognized as an internal or external command, operable program or batch file.`);
+                print(`'${cmd.split(' ')[0]}' is not recognized as an internal or external command.`);
         }
         saveGame();
     }
